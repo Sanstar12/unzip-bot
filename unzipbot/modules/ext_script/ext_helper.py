@@ -3,8 +3,7 @@ import shutil
 from asyncio import create_subprocess_shell, subprocess
 from shlex import quote
 
-from pykeyboard import InlineKeyboard
-from pyrogram.types import InlineKeyboardButton
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from config import Config
 from unzipbot import LOGGER
@@ -224,92 +223,78 @@ async def merge_files(iinput, ooutput, file_type, password=None):
     return result
 
 
+def chunk_buttons(buttons, row_width: int):
+    return [buttons[i : i + row_width] for i in range(0, len(buttons), row_width)]
+
+
 # TODO
 # Make keyboard
 async def make_keyboard(paths, user_id, chat_id, unziphttp, rzfile=None):
-    num = 0
-    i_kbd = InlineKeyboard(row_width=1)
-    data = []
+    buttons = []
+    cb = f"ext_a|{user_id}|{chat_id}|{unziphttp}"
 
-    if unziphttp:
-        data.append(
-            InlineKeyboardButton(
-                text=messages.get(file="ext_helper", key="UP_ALL", user_id=user_id),
-                callback_data=f"ext_a|{user_id}|{chat_id}|{unziphttp}|{rzfile}",
-            )
-        )
-    else:
-        data.append(
-            InlineKeyboardButton(
-                text=messages.get(file="ext_helper", key="UP_ALL", user_id=user_id),
-                callback_data=f"ext_a|{user_id}|{chat_id}|{unziphttp}",
-            )
-        )
+    if unziphttp and rzfile:
+        cb += f"|{rzfile}"
 
-    data.append(
+    buttons.append(
+        InlineKeyboardButton(
+            text=messages.get(file="ext_helper", key="UP_ALL", user_id=user_id),
+            callback_data=cb,
+        )
+    )
+
+    buttons.append(
         InlineKeyboardButton(
             text=messages.get(file="ext_helper", key="CANCEL_IT", user_id=user_id),
             callback_data="cancel_dis",
         )
     )
 
-    for file in paths:
+    for num, path in enumerate(paths):
         if num > 96:
             break
 
-        if unziphttp:
-            data.append(
-                InlineKeyboardButton(
-                    text=f"{num} - {os.path.basename(file)}".encode(
-                        encoding="utf-8", errors="surrogateescape"
-                    ).decode(encoding="utf-8", errors="surrogateescape"),
-                    callback_data=f"ext_f|{user_id}|{chat_id}|{num}|{unziphttp}|{rzfile}",
-                )
+        cb = f"ext_f|{user_id}|{chat_id}|{num}|{unziphttp}"
+
+        if unziphttp and rzfile:
+            cb += f"|{rzfile}"
+
+        buttons.append(
+            InlineKeyboardButton(
+                text=f"{num} - {os.path.basename(path)}".encode(
+                    encoding="utf-8", errors="surrogateescape"
+                ).decode(encoding="utf-8", errors="surrogateescape"),
+                callback_data=cb,
             )
-        else:
-            data.append(
-                InlineKeyboardButton(
-                    text=f"{num} - {os.path.basename(file)}".encode(
-                        encoding="utf-8", errors="surrogateescape"
-                    ).decode(encoding="utf-8", errors="surrogateescape"),
-                    callback_data=f"ext_f|{user_id}|{chat_id}|{num}|{unziphttp}",
-                )
-            )
+        )
 
-        num += 1
+    keyboard = chunk_buttons(buttons, 1)
 
-    i_kbd.add(*data)
-
-    return i_kbd
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
 # TODO
 async def make_keyboard_empty(user_id, chat_id, unziphttp, rzfile=None):
-    i_kbd = InlineKeyboard(row_width=2)
-    data = []
+    buttons = []
+    cb = f"ext_a|{user_id}|{chat_id}|{unziphttp}"
 
-    if unziphttp:
-        data.append(
-            InlineKeyboardButton(
-                text=messages.get(file="ext_helper", key="UP_ALL", user_id=user_id),
-                callback_data=f"ext_a|{user_id}|{chat_id}|{unziphttp}|{rzfile}",
-            )
-        )
-    else:
-        data.append(
-            InlineKeyboardButton(
-                text=messages.get(file="ext_helper", key="UP_ALL", user_id=user_id),
-                callback_data=f"ext_a|{user_id}|{chat_id}|{unziphttp}",
-            )
-        )
+    if unziphttp and rzfile:
+        cb += f"|{rzfile}"
 
-    data.append(
+    buttons.append(
+        InlineKeyboardButton(
+            text=messages.get(file="ext_helper", key="UP_ALL", user_id=user_id),
+            callback_data=cb,
+        )
+    )
+
+    buttons.append(
         InlineKeyboardButton(
             text=messages.get(file="ext_helper", key="CANCEL_IT", user_id=user_id),
             callback_data="cancel_dis",
         )
     )
 
-    i_kbd.add(*data)
+    keyboard = chunk_buttons(buttons, 2)
 
-    return i_kbd
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
