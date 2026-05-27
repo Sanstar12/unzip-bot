@@ -1,5 +1,6 @@
 # Copyright (c) 2022 - 2024 EDM115
 import asyncio
+import aiofiles
 import os
 import pathlib
 import re
@@ -46,6 +47,46 @@ async def get_size(doc_f):
         return fsize
     except:
         return -1
+
+
+async def sequential_split_and_upload(
+    unzip_bot, c_id, doc_f, query, log_msg, config_max_size
+):
+    # Sequential splitting and uploading to save disk space
+    file_size = await get_size(doc_f)
+    part_number = 1
+    # Use a slightly smaller part size than max to be safe (10MB buffer)
+    PART_SIZE = int(config_max_size) - (10 * 1024 * 1024)
+
+    async with aiofiles.open(doc_f, mode="rb") as f:
+        while True:
+            chunk = await f.read(PART_SIZE)
+            if not chunk:
+                break
+
+            # Create part filename
+            part_name = f"{doc_f}.part{str(part_number).zfill(3)}"
+            async with aiofiles.open(part_name, mode="wb") as part_file:
+                await part_file.write(chunk)
+
+            # Upload this part
+            await send_file(
+                unzip_bot=unzip_bot,
+                c_id=c_id,
+                doc_f=part_name,
+                query=query,
+                full_path=doc_f,
+                log_msg=log_msg,
+                split=True,
+            )
+
+            # Delete part immediately after upload
+            try:
+                os.remove(part_name)
+            except:
+                pass
+            part_number += 1
+    return part_number - 1
 
 
 # Send file to a user
