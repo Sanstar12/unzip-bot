@@ -11,6 +11,15 @@ from pyrogram.types import InlineKeyboardButton
 from unzipper import LOGGER
 from unzipper.modules.bot_data import Messages
 
+# Find the 7z binary
+def get_7z_bin():
+    for cmd in ["7z", "7za", "7zr"]:
+        if shutil.which(cmd):
+            return cmd
+    return "7z"  # fallback to default
+
+SEVEN_Z = get_7z_bin()
+
 
 # Get files in directory as a list
 async def get_files(path):
@@ -54,17 +63,17 @@ async def run_cmds_on_cr(func, **kwargs):
 
 # Extract with 7z
 async def _extract_with_7z_helper(path, archive_path, password=None):
-    LOGGER.info("7z : " + archive_path + " : " + path)
+    LOGGER.info(f"{SEVEN_Z} : " + archive_path + " : " + path)
     if password:
-        command = f'7z x -o"{path}" -p"{password}" "{archive_path}" -y'
+        command = f'{SEVEN_Z} x -o"{path}" -p"{password}" "{archive_path}" -y'
     else:
-        command = f'7z x -o"{path}" "{archive_path}" -y'
+        command = f'{SEVEN_Z} x -o"{path}" "{archive_path}" -y'
     return await run_cmds_on_cr(__run_cmds_unzipper, cmd=command)
 
 
 async def _test_with_7z_helper(archive_path):
     password = "dont care + didnt ask + cry about it + stay mad + get real + L"  # skipcq: PTC-W1006, SCT-A000
-    command = f'7z t "{archive_path}" -p"{password}" -y'
+    command = f'{SEVEN_Z} t "{archive_path}" -p"{password}" -y'
     return "Everything is Ok" in await run_cmds_on_cr(__run_cmds_unzipper, cmd=command)
 
 
@@ -127,7 +136,7 @@ async def extr_files(path, archive_path, password=None):
 
 # Split files
 async def split_files(iinput, ooutput, size):
-    command = f'7z a -tzip -mx=0 "{ooutput}" "{iinput}" -v{size}b'
+    command = f'{SEVEN_Z} a -tzip -mx=0 "{ooutput}" "{iinput}" -v{size}b'
     await run_cmds_on_cr(__run_cmds_unzipper, cmd=command)
     spdir = ooutput.replace("/" + ooutput.split("/")[-1], "")
     return await get_files(spdir)
@@ -136,9 +145,9 @@ async def split_files(iinput, ooutput, size):
 # Merge files
 async def merge_files(iinput, ooutput, password=None):
     if password:
-        command = f'7z x -o"{ooutput}" -p"{password}" "{iinput}" -y'
+        command = f'{SEVEN_Z} x -o"{ooutput}" -p"{password}" "{iinput}" -y'
     else:
-        command = f'7z x -o"{ooutput}" "{iinput}" -y'
+        command = f'{SEVEN_Z} x -o"{ooutput}" "{iinput}" -y'
     return await run_cmds_on_cr(__run_cmds_unzipper, cmd=command)
 
 
