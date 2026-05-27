@@ -13,47 +13,20 @@ from unzipper.modules.bot_data import Messages
 
 # Find the 7z binary
 def get_7z_bin():
-    LOGGER.info(f"Checking PATH: {os.environ.get('PATH')}")
-    # Prioritize 7zz (the real standalone binary)
-    candidates = ["7zz", "7za", "7z", "7zr"]
-    found_bins = []
+    # If on Heroku, 7zz is the only reliable binary for Ubuntu 24.04
+    heroku_7zz = "/app/.apt/usr/bin/7zz"
+    if os.path.exists(heroku_7zz):
+        return heroku_7zz
     
-    # Check Heroku Apt buildpack location specifically
-    heroku_apt_path = "/app/.apt/usr/bin/"
-    if os.path.isdir(heroku_apt_path):
-        apt_files = os.listdir(heroku_apt_path)
-        LOGGER.info(f"Files in .apt/usr/bin: {', '.join(apt_files)}")
-        
-        # Check for 7zz first as it's the only one guaranteed to be a real binary on Noble
-        if "7zz" in apt_files:
-            return os.path.join(heroku_apt_path, "7zz")
-        
-        for cmd in candidates:
-            full_path = os.path.join(heroku_apt_path, cmd)
-            if os.path.exists(full_path):
-                # Try to check if it's a script or binary (simple check: 7zz is large, scripts are small)
-                if os.path.getsize(full_path) > 1000000: # Binary is usually > 1MB
-                    return full_path
-                found_bins.append(f"{cmd} (script found at {full_path})")
-
-    for cmd in candidates:
+    # Fallback for other environments
+    for cmd in ["7zz", "7za", "7z", "7zr"]:
         path = shutil.which(cmd)
         if path:
-            if os.path.getsize(path) > 1000000:
-                return path
-            found_bins.append(f"{cmd} (at {path})")
-
-    LOGGER.info(f"Found potential 7z candidates (but they might be broken scripts): {', '.join(found_bins) if found_bins else 'None'}")
-    
-    # If we found 7zz anywhere, use it
-    for cmd in ["7zz", "7za", "7z"]:
-        path = shutil.which(cmd)
-        if path and "7zz" in path:
             return path
-            
-    return "7z"  # fallback to default
+    return "7z"
 
 SEVEN_Z = get_7z_bin()
+LOGGER.info(f"Using 7z binary: {SEVEN_Z}")
 
 
 # Get files in directory as a list
