@@ -13,20 +13,29 @@ from unzipper.modules.bot_data import Messages
 
 # Find the 7z binary
 def get_7z_bin():
-    # If on Heroku, 7zz is the only reliable binary for Ubuntu 24.04
-    heroku_7zz = "/app/.apt/usr/bin/7zz"
-    if os.path.exists(heroku_7zz):
-        return heroku_7zz
-    
-    # Fallback for other environments
+    # Log everything to see what's happening
+    apt_bin = "/app/.apt/usr/bin"
+    if os.path.isdir(apt_bin):
+        files = os.listdir(apt_bin)
+        LOGGER.info(f"Files in {apt_bin}: {', '.join(files)}")
+        # Check for 7zz or 7za or 7z in .apt
+        for b in ["7zz", "7za", "7z"]:
+            if b in files:
+                fpath = os.path.join(apt_bin, b)
+                # Ensure it's not a tiny script (scripts are < 1000 bytes)
+                if os.path.getsize(fpath) > 5000:
+                    return fpath
+
+    # Standard search
     for cmd in ["7zz", "7za", "7z", "7zr"]:
         path = shutil.which(cmd)
-        if path:
+        if path and os.path.getsize(path) > 5000:
             return path
+            
     return "7z"
 
 SEVEN_Z = get_7z_bin()
-LOGGER.info(f"Using 7z binary: {SEVEN_Z}")
+LOGGER.info(f"Final 7z binary selected: {SEVEN_Z}")
 
 
 # Get files in directory as a list
