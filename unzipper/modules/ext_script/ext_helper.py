@@ -14,27 +14,38 @@ from unzipper.modules.bot_data import Messages
 # Find the 7z binary
 def get_7z_bin():
     LOGGER.info(f"Checking PATH: {os.environ.get('PATH')}")
-    candidates = ["7z", "7za", "7zr", "7zz"]
+    # Prioritize 7zz and 7za as they are often standalone binaries
+    candidates = ["7zz", "7za", "7z", "7zr"]
     found_bins = []
-    for cmd in candidates:
-        path = shutil.which(cmd)
-        if path:
-            found_bins.append(f"{cmd} (at {path})")
     
     # Check Heroku Apt buildpack location specifically
     heroku_apt_path = "/app/.apt/usr/bin/"
     if os.path.isdir(heroku_apt_path):
         LOGGER.info(f"Heroku Apt path found: {heroku_apt_path}")
         for cmd in candidates:
-            if os.path.exists(os.path.join(heroku_apt_path, cmd)):
+            full_path = os.path.join(heroku_apt_path, cmd)
+            if os.path.exists(full_path):
                 found_bins.append(f"{cmd} (in .apt/usr/bin)")
-                return os.path.join(heroku_apt_path, cmd)
+                # For Ubuntu 24.04, 7z is a broken script, but 7zz is the real binary
+                if cmd == "7zz" or cmd == "7za":
+                    return full_path
+
+    for cmd in candidates:
+        path = shutil.which(cmd)
+        if path:
+            found_bins.append(f"{cmd} (at {path})")
+            if cmd == "7zz" or cmd == "7za":
+                return path
 
     LOGGER.info(f"Found 7z candidates: {', '.join(found_bins) if found_bins else 'None'}")
     
-    for cmd in candidates:
-        if shutil.which(cmd):
-            return cmd
+    # Final attempt: return the first one found or default to 7z
+    if found_bins:
+        # If we only found '7z' and nothing else, we'll have to use it
+        first_cmd = found_bins[0].split(" ")[0]
+        path = shutil.which(first_cmd)
+        return path if path else first_cmd
+        
     return "7z"  # fallback to default
 
 SEVEN_Z = get_7z_bin()
