@@ -28,9 +28,14 @@ from .ext_script.ext_helper import (
     make_keyboard,
     make_keyboard_empty,
     merge_files,
-    split_files,
 )
-from .ext_script.up_helper import answer_query, get_size, send_file, send_url_logs
+from .ext_script.up_helper import (
+    answer_query,
+    get_size,
+    send_file,
+    send_url_logs,
+    sequential_split_and_upload,
+)
 from config import Config
 from unzipper import LOGGER, unzipperbot
 from unzipper.helpers.database import (
@@ -756,33 +761,15 @@ async def unzipper_cb(unzip_bot: Client, query: CallbackQuery):
                     await del_ongoing_task(user_id)
                     return shutil.rmtree(f"{Config.DOWNLOAD_LOCATION}/{user_id}")
                 await query.message.edit(Messages.SPLITTING.format(newfname))
-                splitteddir = f"{Config.DOWNLOAD_LOCATION}/splitted/{user_id}"
-                os.makedirs(splitteddir, exist_ok=True)
-                ooutput = f"{splitteddir}/{newfname}"
-                splittedfiles = await split_files(renamed, ooutput, Config.TG_MAX_SIZE)
-                if not splittedfiles:
-                    try:
-                        shutil.rmtree(splitteddir)
-                    except:
-                        pass
-                    await del_ongoing_task(user_id)
-                    await query.message.edit(Messages.ERR_SPLIT)
-                    return
-                await query.message.edit(Messages.SEND_ALL_PARTS.format(newfname))
-                async_splittedfiles = async_generator(splittedfiles)
-                async for file in async_splittedfiles:
-                    sent_files += 1
-                    await send_file(
-                        unzip_bot=unzip_bot,
-                        c_id=user_id,
-                        doc_f=file,
-                        query=query,
-                        full_path=splitteddir,
-                        log_msg=log_msg,
-                        split=True,
-                    )
+                await sequential_split_and_upload(
+                    unzip_bot=unzip_bot,
+                    c_id=user_id,
+                    doc_f=renamed,
+                    query=query,
+                    log_msg=log_msg,
+                    config_max_size=Config.TG_MAX_SIZE,
+                )
                 try:
-                    shutil.rmtree(splitteddir)
                     shutil.rmtree(renamed.replace(newfname, ""))
                 except:
                     pass
@@ -819,6 +806,10 @@ async def unzipper_cb(unzip_bot: Client, query: CallbackQuery):
                     password=password.text,
                 )
                 ext_e_time = time()
+                try:
+                    os.remove(archive)
+                except:
+                    pass
                 await archive_msg.reply(Messages.PASS_TXT.format(password.text))
             else:
                 ext_s_time = time()
@@ -837,6 +828,10 @@ async def unzipper_cb(unzip_bot: Client, query: CallbackQuery):
                         path=ext_files_dir, archive_path=archive
                     )
                     ext_e_time = time()
+                    try:
+                        os.remove(archive)
+                    except:
+                        pass
                 else:
                     LOGGER.info("Error on test")
                     extractor = "Error"
@@ -1011,34 +1006,15 @@ async def unzipper_cb(unzip_bot: Client, query: CallbackQuery):
             smessage = await unzip_bot.send_message(
                 chat_id=user_id, text=Messages.SPLITTING.format(fname)
             )
-            splitteddir = f"{Config.DOWNLOAD_LOCATION}/splitted/{user_id}"
-            os.makedirs(splitteddir, exist_ok=True)
-            ooutput = f"{splitteddir}/{fname}"
-            splittedfiles = await split_files(file, ooutput, Config.TG_MAX_SIZE)
-            LOGGER.info(splittedfiles)
-            if not splittedfiles:
-                try:
-                    shutil.rmtree(splitteddir)
-                except:
-                    pass
-                await del_ongoing_task(user_id)
-                await smessage.edit(Messages.ERR_SPLIT)
-                return
-            await smessage.edit(Messages.SEND_ALL_PARTS.format(fname))
-            async_splittedfiles = async_generator(splittedfiles)
-            async for file in async_splittedfiles:
-                sent_files += 1
-                await send_file(
-                    unzip_bot=unzip_bot,
-                    c_id=user_id,
-                    doc_f=file,
-                    query=query,
-                    full_path=splitteddir,
-                    log_msg=log_msg,
-                    split=True,
-                )
+            await sequential_split_and_upload(
+                unzip_bot=unzip_bot,
+                c_id=user_id,
+                doc_f=file,
+                query=query,
+                log_msg=log_msg,
+                config_max_size=Config.TG_MAX_SIZE,
+            )
             try:
-                shutil.rmtree(splitteddir)
                 os.remove(file)
             except:
                 pass
@@ -1158,36 +1134,15 @@ async def unzipper_cb(unzip_bot: Client, query: CallbackQuery):
                 smessage = await unzip_bot.send_message(
                     chat_id=user_id, text=Messages.SPLITTING.format(fname)
                 )
-                splitteddir = f"{Config.DOWNLOAD_LOCATION}/splitted/{user_id}"
-                os.makedirs(splitteddir, exist_ok=True)
-                ooutput = f"{splitteddir}/{fname}"
-                splittedfiles = await split_files(file, ooutput, Config.TG_MAX_SIZE)
-                LOGGER.info(splittedfiles)
-                if not splittedfiles:
-                    try:
-                        shutil.rmtree(splitteddir)
-                    except:
-                        pass
-                    await del_ongoing_task(user_id)
-                    await smessage.edit(Messages.ERR_SPLIT)
-                    return
                 await smessage.edit(Messages.SEND_ALL_PARTS.format(fname))
-                async_splittedfiles = async_generator(splittedfiles)
-                async for s_file in async_splittedfiles:
-                    sent_files += 1
-                    await send_file(
-                        unzip_bot=unzip_bot,
-                        c_id=user_id,
-                        doc_f=s_file,
-                        query=query,
-                        full_path=splitteddir,
-                        log_msg=log_msg,
-                        split=True,
-                    )
-                try:
-                    shutil.rmtree(splitteddir)
-                except:
-                    pass
+                sent_files += await sequential_split_and_upload(
+                    unzip_bot=unzip_bot,
+                    c_id=user_id,
+                    doc_f=file,
+                    query=query,
+                    log_msg=log_msg,
+                    config_max_size=Config.TG_MAX_SIZE,
+                )
                 try:
                     await smessage.delete()
                 except:
