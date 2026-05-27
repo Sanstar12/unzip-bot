@@ -13,29 +13,37 @@ from unzipper.modules.bot_data import Messages
 
 # Find the 7z binary
 def get_7z_bin():
-    # Log everything to see what's happening
-    apt_bin = "/app/.apt/usr/bin"
-    if os.path.isdir(apt_bin):
-        files = os.listdir(apt_bin)
-        LOGGER.info(f"Files in {apt_bin}: {', '.join(files)}")
-        # Check for 7zz or 7za or 7z in .apt
-        for b in ["7zz", "7za", "7z"]:
-            if b in files:
-                fpath = os.path.join(apt_bin, b)
-                # Ensure it's not a tiny script (scripts are < 1000 bytes)
-                if os.path.getsize(fpath) > 5000:
-                    return fpath
+    # Recursive search in .apt to find the REAL binary
+    apt_path = "/app/.apt"
+    if os.path.isdir(apt_path):
+        LOGGER.info(f"Scanning {apt_path} for real 7z binary...")
+        found_binaries = []
+        for root, dirs, files in os.walk(apt_path):
+            for name in files:
+                if name in ["7zz", "7z", "7za", "7zr"]:
+                    full_path = os.path.join(root, name)
+                    size = os.path.getsize(full_path)
+                    # Real binaries are usually > 1MB (1,000,000 bytes)
+                    # Broken scripts are usually < 5000 bytes
+                    if size > 500000: 
+                        found_binaries.append((size, full_path))
+        
+        if found_binaries:
+            # Pick the largest one (most likely the full 7zz binary)
+            found_binaries.sort(key=lambda x: x[0], reverse=True)
+            chosen = found_binaries[0][1]
+            LOGGER.info(f"Real binary found and selected: {chosen} (Size: {found_binaries[0][0]})")
+            return chosen
 
-    # Standard search
-    for cmd in ["7zz", "7za", "7z", "7zr"]:
+    # Fallback to standard PATH search
+    for cmd in ["7zz", "7za", "7z"]:
         path = shutil.which(cmd)
-        if path and os.path.getsize(path) > 5000:
+        if path and os.path.getsize(path) > 500000:
             return path
             
     return "7z"
 
 SEVEN_Z = get_7z_bin()
-LOGGER.info(f"Final 7z binary selected: {SEVEN_Z}")
 
 
 # Get files in directory as a list
