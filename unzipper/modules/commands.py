@@ -47,7 +47,14 @@ https_url_regex = r"((http|https)\:\/\/)?[a-zA-Z0-9\.\/\?\:@\-_=#]+\.([a-zA-Z]){
 
 
 def sufficient_disk_space(required_space):
-    return True
+    disk_usage = psutil.disk_usage("/")
+    free_space = disk_usage.free
+    total_space = disk_usage.total
+    five_percent_total = total_space * 0.05
+
+    if free_space >= required_space and free_space >= five_percent_total:
+        return True
+    return False
 
 
 @unzipperbot.on_message(filters.private)
