@@ -14,38 +14,43 @@ from unzipper.modules.bot_data import Messages
 # Find the 7z binary
 def get_7z_bin():
     LOGGER.info(f"Checking PATH: {os.environ.get('PATH')}")
-    # Prioritize 7zz and 7za as they are often standalone binaries
+    # Prioritize 7zz (the real standalone binary)
     candidates = ["7zz", "7za", "7z", "7zr"]
     found_bins = []
     
     # Check Heroku Apt buildpack location specifically
     heroku_apt_path = "/app/.apt/usr/bin/"
     if os.path.isdir(heroku_apt_path):
-        LOGGER.info(f"Heroku Apt path found: {heroku_apt_path}")
+        apt_files = os.listdir(heroku_apt_path)
+        LOGGER.info(f"Files in .apt/usr/bin: {', '.join(apt_files)}")
+        
+        # Check for 7zz first as it's the only one guaranteed to be a real binary on Noble
+        if "7zz" in apt_files:
+            return os.path.join(heroku_apt_path, "7zz")
+        
         for cmd in candidates:
             full_path = os.path.join(heroku_apt_path, cmd)
             if os.path.exists(full_path):
-                found_bins.append(f"{cmd} (in .apt/usr/bin)")
-                # For Ubuntu 24.04, 7z is a broken script, but 7zz is the real binary
-                if cmd == "7zz" or cmd == "7za":
+                # Try to check if it's a script or binary (simple check: 7zz is large, scripts are small)
+                if os.path.getsize(full_path) > 1000000: # Binary is usually > 1MB
                     return full_path
+                found_bins.append(f"{cmd} (script found at {full_path})")
 
     for cmd in candidates:
         path = shutil.which(cmd)
         if path:
-            found_bins.append(f"{cmd} (at {path})")
-            if cmd == "7zz" or cmd == "7za":
+            if os.path.getsize(path) > 1000000:
                 return path
+            found_bins.append(f"{cmd} (at {path})")
 
-    LOGGER.info(f"Found 7z candidates: {', '.join(found_bins) if found_bins else 'None'}")
+    LOGGER.info(f"Found potential 7z candidates (but they might be broken scripts): {', '.join(found_bins) if found_bins else 'None'}")
     
-    # Final attempt: return the first one found or default to 7z
-    if found_bins:
-        # If we only found '7z' and nothing else, we'll have to use it
-        first_cmd = found_bins[0].split(" ")[0]
-        path = shutil.which(first_cmd)
-        return path if path else first_cmd
-        
+    # If we found 7zz anywhere, use it
+    for cmd in ["7zz", "7za", "7z"]:
+        path = shutil.which(cmd)
+        if path and "7zz" in path:
+            return path
+            
     return "7z"  # fallback to default
 
 SEVEN_Z = get_7z_bin()
