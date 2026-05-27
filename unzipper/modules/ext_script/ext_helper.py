@@ -13,7 +13,26 @@ from unzipper.modules.bot_data import Messages
 
 # Find the 7z binary
 def get_7z_bin():
-    for cmd in ["7z", "7za", "7zr"]:
+    LOGGER.info(f"Checking PATH: {os.environ.get('PATH')}")
+    candidates = ["7z", "7za", "7zr", "7zz"]
+    found_bins = []
+    for cmd in candidates:
+        path = shutil.which(cmd)
+        if path:
+            found_bins.append(f"{cmd} (at {path})")
+    
+    # Check Heroku Apt buildpack location specifically
+    heroku_apt_path = "/app/.apt/usr/bin/"
+    if os.path.isdir(heroku_apt_path):
+        LOGGER.info(f"Heroku Apt path found: {heroku_apt_path}")
+        for cmd in candidates:
+            if os.path.exists(os.path.join(heroku_apt_path, cmd)):
+                found_bins.append(f"{cmd} (in .apt/usr/bin)")
+                return os.path.join(heroku_apt_path, cmd)
+
+    LOGGER.info(f"Found 7z candidates: {', '.join(found_bins) if found_bins else 'None'}")
+    
+    for cmd in candidates:
         if shutil.which(cmd):
             return cmd
     return "7z"  # fallback to default
