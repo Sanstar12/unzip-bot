@@ -149,8 +149,6 @@ async def extract_archive(_, message: Message):
         if await is_queue_mode(uid):
             if message.document:
                 await add_to_queue(uid, message.id)
-                queue = await get_queue(uid)
-                await message.reply_text(Messages.ADDED_TO_QUEUE.format(len(queue)))
                 return
             else:
                 await message.reply_text("Only documents are supported in queue mode 🧐")
