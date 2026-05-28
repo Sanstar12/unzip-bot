@@ -128,6 +128,9 @@ async def process_queue(client, message, queue, password=None):
         Messages.PROCESSING_QUEUE.format(processed_count, total_files, "Starting...")
     )
 
+    # Sort the queue by msg_id to ensure sequential processing
+    queue.sort()
+
     for msg_id in queue:
         processed_count += 1
         try:
