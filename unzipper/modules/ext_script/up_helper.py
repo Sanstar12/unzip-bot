@@ -48,6 +48,13 @@ async def get_size(doc_f):
         return -1
 
 
+def get_duration(duration_str):
+    try:
+        return int(float(duration_str))
+    except (ValueError, TypeError):
+        return 0
+
+
 # Send file to a user
 async def send_file(unzip_bot, c_id, doc_f, query, full_path, log_msg, split):
     fsize = await get_size(doc_f)
@@ -188,16 +195,17 @@ async def send_file(unzip_bot, c_id, doc_f, query, full_path, log_msg, split):
                         ),
                     )
         elif ul_mode == "media" and fext in extentions_list["video"]:
-            vid_duration = await run_shell_cmds(
+            vid_duration_raw = await run_shell_cmds(
                 f'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "{doc_f}"'
             )
+            vid_duration = get_duration(vid_duration_raw)
             if thumbornot:
                 thumb_image = Config.THUMB_LOCATION + "/" + str(c_id) + ".jpg"
                 await unzip_bot.send_video(
                     chat_id=c_id,
                     video=doc_f,
                     caption=Messages.EXT_CAPTION.format(fname),
-                    duration=int(float(vid_duration)),
+                    duration=vid_duration,
                     thumb=thumb_image,
                     disable_notification=True,
                     progress=progress_for_pyrogram,
@@ -215,7 +223,7 @@ async def send_file(unzip_bot, c_id, doc_f, query, full_path, log_msg, split):
                 if os.path.exists(thmb_pth):
                     os.remove(thmb_pth)
                 try:
-                    midpoint_seconds = int(float(vid_duration) / 2)
+                    midpoint_seconds = int(vid_duration / 2)
                     midpoint_timedelta = timedelta(seconds=midpoint_seconds)
                     midpoint_str = str(midpoint_timedelta)
 
