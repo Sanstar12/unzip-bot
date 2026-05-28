@@ -35,6 +35,34 @@ class Messages:
 
     RATE = "Rate me ⭐"
 
+    # Queue system
+    QUEUE_MODE_ON = """
+**Queue Mode Activated!** 📥
+
+Now send me all the zip files you want to extract.
+When you are done, send `/done` to start processing.
+If the files are password protected, send `/done <password>`.
+    """
+
+    ADDED_TO_QUEUE = """
+✅ **Added to queue!**
+Total files in queue: `{}`
+Send more or `/done` to start.
+    """
+
+    QUEUE_EMPTY = "Your queue is empty! Send some files first 🧐"
+
+    PROCESSING_QUEUE = """
+**Processing Queue...** ⚙️
+`{}` / `{}` files remaining.
+Current: `{}`
+    """
+
+    QUEUE_DONE = """
+✅ **Queue processing completed!**
+Total files processed: `{}`
+    """
+
     # start.py
 
     PRIVATE_CHAT = "A private chat can't be used"
@@ -157,7 +185,7 @@ Select the extraction mode for that merged file 👀
     EXT_CAPTION = """
 `{}`
 
- ENJOYYY
+ENJOYYY!!
     """
 
     REPORT_TEXT = """
