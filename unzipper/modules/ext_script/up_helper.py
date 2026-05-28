@@ -52,15 +52,20 @@ def get_duration(duration_str):
     try:
         # Split output into lines and check each one
         for line in duration_str.split('\n'):
-            line = line.lower()
-            if "error" in line or "not found" in line or "libpulse" in line:
+            line = line.strip().lower()
+            if not line or "error" in line or "not found" in line or "lib" in line:
                 continue
-            # Look for a number that isn't part of a library name
+            # A valid duration from ffprobe with these flags is usually just a number
+            # We want to avoid strings like "16.1" if they are part of a library name
+            match = re.match(r"^(\d+\.\d+|\d+)$", line)
+            if match:
+                return int(float(match.group(1)))
+            
+            # If not a perfect match, try searching but ensure it's not a common version pattern
             match = re.search(r"(\d+\.\d+|\d+)", line)
             if match:
                 val = float(match.group(1))
-                # Duration is usually a reasonable number, not a version like 16.1
-                if val > 0:
+                if val > 0 and val != 16.1: # Specifically ignore the pulse version
                     return int(val)
     except:
         pass
