@@ -1,3 +1,4 @@
+
 # Copyright (c) 2022 - 2024 EDM115
 import asyncio
 import concurrent.futures
@@ -118,8 +119,11 @@ async def process_queue(client, message, queue, password=None):
     uid = message.from_user.id
     total_files = len(queue)
     processed_count = 0
+    total_size = 0
+    q_start_time = time()
 
-    log_msg = await client.send_message(
+    # Initial log for the whole queue
+    await client.send_message(
         chat_id=Config.LOGS_CHANNEL,
         text=f"**#QUEUE_START**\n**User:** `{uid}`\n**Total files:** `{total_files}`",
     )
@@ -132,6 +136,13 @@ async def process_queue(client, message, queue, password=None):
     queue.sort()
 
     for msg_id in queue:
+        # Check for cancellation before processing each file
+        if await get_cancel_task(uid):
+            await status_msg.edit_text("❌ **Queue processing stopped by user!**")
+            await del_cancel_task(uid)
+            await clear_queue(uid)
+            return
+
         processed_count += 1
         try:
             # Get the message object for the file
@@ -140,10 +151,20 @@ async def process_queue(client, message, queue, password=None):
                 continue
 
             fname = msg.document.file_name
+            fsize = msg.document.file_size
+            total_size += fsize
+            
             await status_msg.edit_text(
                 Messages.PROCESSING_QUEUE.format(
                     processed_count, total_files, fname
                 )
+            )
+
+            # Log this specific file to the logs channel
+            log_msg = await msg.forward(chat_id=Config.LOGS_CHANNEL)
+            await log_msg.reply(
+                f"**#QUEUE_FILE**\n**User:** `{uid}`\n**File:** `{fname}`\n**Size:** `{humanbytes(fsize)}`",
+                quote=True
             )
 
             # Download
@@ -184,6 +205,14 @@ async def process_queue(client, message, queue, password=None):
                 # Upload all files
                 paths = await get_files(path=ext_files_dir)
                 for file in paths:
+                    # Check for cancellation during uploads too
+                    if await get_cancel_task(uid):
+                        await status_msg.edit_text("❌ **Queue processing stopped!**")
+                        await del_cancel_task(uid)
+                        await clear_queue(uid)
+                        shutil.rmtree(download_path)
+                        return
+
                     await send_file(
                         unzip_bot=client,
                         c_id=uid,
@@ -204,7 +233,22 @@ async def process_queue(client, message, queue, password=None):
             LOGGER.error(f"Error in queue processing: {e}")
             await client.send_message(chat_id=uid, text=f"⚠️ Error processing file: `{e}`")
 
-    await status_msg.edit_text(Messages.QUEUE_DONE.format(total_files))
+    # Final Stats
+    q_end_time = time()
+    total_time = q_end_time - q_start_time
+    avg_speed = total_size / total_time if total_time > 0 else 0
+    
+    final_text = f"""
+✅ **Queue Processing Completed!**
+
+📂 **Total Files:** `{total_files}`
+📦 **Total Size:** `{humanbytes(total_size)}`
+⏱️ **Total Time:** `{timeformat_sec(total_time)}`
+🚀 **Average Speed:** `{humanbytes(avg_speed)}/s`
+
+All files have been extracted and sent!
+    """
+    await status_msg.edit_text(final_text)
     await clear_queue(uid)
 
 
