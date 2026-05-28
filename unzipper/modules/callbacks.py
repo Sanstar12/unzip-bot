@@ -36,6 +36,7 @@ from unzipper import LOGGER, unzipperbot
 from unzipper.helpers.database import (
     add_cancel_task,
     add_ongoing_task,
+    clear_queue,
     count_ongoing_tasks,
     del_cancel_task,
     del_merge_task,
@@ -111,6 +112,97 @@ def get_zip_http(url):
     rzf = unzip_http.RemoteZipFile(url)
     paths = rzf.namelist()
     return rzf, paths
+
+
+async def process_queue(client, message, queue, password=None):
+    uid = message.from_user.id
+    total_files = len(queue)
+    processed_count = 0
+
+    log_msg = await client.send_message(
+        chat_id=Config.LOGS_CHANNEL,
+        text=f"**#QUEUE_START**\n**User:** `{uid}`\n**Total files:** `{total_files}`",
+    )
+
+    status_msg = await message.reply_text(
+        Messages.PROCESSING_QUEUE.format(processed_count, total_files, "Starting...")
+    )
+
+    for msg_id in queue:
+        processed_count += 1
+        try:
+            # Get the message object for the file
+            msg = await client.get_messages(chat_id=uid, message_ids=msg_id)
+            if not msg or not msg.document:
+                continue
+
+            fname = msg.document.file_name
+            await status_msg.edit_text(
+                Messages.PROCESSING_QUEUE.format(
+                    processed_count, total_files, fname
+                )
+            )
+
+            # Download
+            download_path = f"{Config.DOWNLOAD_LOCATION}/{uid}/queue_{msg_id}"
+            os.makedirs(download_path, exist_ok=True)
+            s_time = time()
+            location = f"{download_path}/{fname}"
+            
+            archive = await msg.download(
+                file_name=location,
+                progress=progress_for_pyrogram,
+                progress_args=(
+                    Messages.TRY_DL,
+                    status_msg,
+                    s_time,
+                    client,
+                ),
+            )
+
+            # Extract
+            ext_files_dir = f"{download_path}/extracted"
+            os.makedirs(ext_files_dir, exist_ok=True)
+            
+            # Using password if provided in /done
+            extractor = await extr_files(
+                path=ext_files_dir,
+                archive_path=archive,
+                password=password,
+            )
+
+            # Check for errors
+            if any(err in extractor for err in ERROR_MSGS):
+                await client.send_message(
+                    chat_id=uid,
+                    text=f"❌ Failed to extract: `{fname}`\nError: `{extractor}`"
+                )
+            else:
+                # Upload all files
+                paths = await get_files(path=ext_files_dir)
+                for file in paths:
+                    await send_file(
+                        unzip_bot=client,
+                        c_id=uid,
+                        doc_f=file,
+                        query=None, # Pseudo query
+                        full_path=ext_files_dir,
+                        log_msg=log_msg,
+                        split=False,
+                    )
+            
+            # Cleanup current task folder to save space
+            try:
+                shutil.rmtree(download_path)
+            except:
+                pass
+
+        except Exception as e:
+            LOGGER.error(f"Error in queue processing: {e}")
+            await client.send_message(chat_id=uid, text=f"⚠️ Error processing file: `{e}`")
+
+    await status_msg.edit_text(Messages.QUEUE_DONE.format(total_files))
+    await clear_queue(uid)
 
 
 async def async_generator(iterable):
