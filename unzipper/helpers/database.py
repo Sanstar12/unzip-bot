@@ -421,6 +421,39 @@ async def clear_merge_tasks():
     await merge_tasks.delete_many({})
 
 
+# DB for queue tasks
+
+queue_db = unzipper_db["queue_db"]
+
+
+async def add_to_queue(user_id, file_id):
+    await queue_db.update_one(
+        {"_id": user_id}, {"$push": {"queue": file_id}}, upsert=True
+    )
+
+
+async def get_queue(user_id):
+    user_queue = await queue_db.find_one({"_id": user_id})
+    if user_queue:
+        return user_queue.get("queue", [])
+    return []
+
+
+async def clear_queue(user_id):
+    await queue_db.delete_one({"_id": user_id})
+
+
+async def set_queue_mode(user_id, val: bool):
+    await queue_db.update_one({"_id": user_id}, {"$set": {"mode": val}}, upsert=True)
+
+
+async def is_queue_mode(user_id):
+    user_queue = await queue_db.find_one({"_id": user_id})
+    if user_queue:
+        return user_queue.get("mode", False)
+    return False
+
+
 # DB for maintenance mode
 
 maintenance_mode = unzipper_db["maintenance_mode"]
