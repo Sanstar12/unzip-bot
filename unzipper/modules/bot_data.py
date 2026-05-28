@@ -154,11 +154,6 @@ Select the extraction mode for that merged file 👀
 ❌ : **Cancel your task**
     """
 
-    EXT_CAPTION = """
-`{}`
-
-Successfully extracted by @sjeeunzip
-    """
 
     REPORT_TEXT = """
 📢 --Report sent--
