@@ -50,9 +50,13 @@ async def get_size(doc_f):
 
 def get_duration(duration_str):
     try:
-        return int(float(duration_str))
-    except (ValueError, TypeError):
-        return 0
+        # Extract only the numbers/float using regex in case of library warnings in output
+        match = re.search(r"(\d+\.\d+|\d+)", duration_str)
+        if match:
+            return int(float(match.group(1)))
+    except:
+        pass
+    return 0
 
 
 # Send file to a user
