@@ -22,8 +22,10 @@ from unzipper import boottime, LOGGER, unzipperbot
 from unzipper.helpers.database import (
     add_banned_user,
     add_merge_task,
+    add_to_queue,
     add_user,
     check_user,
+    clear_queue,
     count_banned_users,
     count_ongoing_tasks,
     count_users,
@@ -33,10 +35,13 @@ from unzipper.helpers.database import (
     get_maintenance,
     get_merge_task,
     get_ongoing_tasks,
+    get_queue,
     get_upload_mode,
     get_uploaded,
     get_users_list,
+    is_queue_mode,
     set_maintenance,
+    set_queue_mode,
 )
 from unzipper.helpers.unzip_help import humanbytes, timeformat_sec
 from unzipper.modules.ext_script.custom_thumbnail import add_thumb, del_thumb
@@ -139,6 +144,18 @@ async def extract_archive(_, message: Message):
     try:
         if message.chat.type != enums.ChatType.PRIVATE:
             return
+        
+        uid = message.from_user.id
+        if await is_queue_mode(uid):
+            if message.document:
+                await add_to_queue(uid, message.id)
+                queue = await get_queue(uid)
+                await message.reply_text(Messages.ADDED_TO_QUEUE.format(len(queue)))
+                return
+            else:
+                await message.reply_text("Only documents are supported in queue mode 🧐")
+                return
+
         unzip_msg = await message.reply(
             Messages.PROCESSING2, reply_to_message_id=message.id
         )
@@ -170,8 +187,17 @@ async def extract_archive(_, message: Message):
         await extract_archive(_, message)
 
 
+@unzipperbot.on_message(filters.private & filters.command("queue"))
+async def start_queue(_, message: Message):
+    await set_queue_mode(message.from_user.id, True)
+    await message.reply_text(Messages.QUEUE_MODE_ON)
+
+
 @unzipperbot.on_message(filters.private & filters.command("cancel"))
 async def cancel_task_by_user(_, message):
+    uid = message.from_user.id
+    await set_queue_mode(uid, False)
+    await clear_queue(uid)
     idtodel = message.id - 1
     try:
         await unzipperbot.delete_messages(
@@ -180,6 +206,28 @@ async def cancel_task_by_user(_, message):
     except:
         pass
     await message.reply(Messages.CANCELLED)
+
+
+@unzipperbot.on_message(filters.private & filters.command("done"))
+async def done_queue(client, message: Message):
+    uid = message.from_user.id
+    if not await is_queue_mode(uid):
+        return
+    
+    queue = await get_queue(uid)
+    if not queue:
+        await message.reply_text(Messages.QUEUE_EMPTY)
+        await set_queue_mode(uid, False)
+        return
+
+    password = None
+    if len(message.command) > 1:
+        password = message.text.split(None, 1)[1]
+    
+    await set_queue_mode(uid, False)
+    # Import here to avoid circular import
+    from .callbacks import process_queue
+    await process_queue(client, message, queue, password)
 
 
 @unzipperbot.on_message(filters.private & filters.command("merge"))
