@@ -153,7 +153,11 @@ Select the extraction mode for that merged file 👀
 🔐 : **Password protected**
 ❌ : **Cancel your task**
     """
+EXT_CAPTION = """
+`{}`
 
+🥳
+    """
 
     REPORT_TEXT = """
 📢 --Report sent--
