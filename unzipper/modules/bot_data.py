@@ -156,7 +156,7 @@ Select the extraction mode for that merged file 👀
 EXT_CAPTION = """
 `{}`
 
-🥳
+Enjoyyy!!!
     """
 
     REPORT_TEXT = """
