@@ -50,10 +50,18 @@ async def get_size(doc_f):
 
 def get_duration(duration_str):
     try:
-        # Extract only the numbers/float using regex in case of library warnings in output
-        match = re.search(r"(\d+\.\d+|\d+)", duration_str)
-        if match:
-            return int(float(match.group(1)))
+        # Split output into lines and check each one
+        for line in duration_str.split('\n'):
+            line = line.lower()
+            if "error" in line or "not found" in line or "libpulse" in line:
+                continue
+            # Look for a number that isn't part of a library name
+            match = re.search(r"(\d+\.\d+|\d+)", line)
+            if match:
+                val = float(match.group(1))
+                # Duration is usually a reasonable number, not a version like 16.1
+                if val > 0:
+                    return int(val)
     except:
         pass
     return 0
