@@ -55,11 +55,12 @@ messages = Messages(lang_fetcher=get_lang)
 def sufficient_disk_space(required_space):
     disk_usage = psutil.disk_usage("/")
     free_space = disk_usage.free
-    # Use a fixed buffer of 50MB instead of 5% of total>
-    # 5% on a 100GB+ drive is 5GB+, which is rarely ava>
-    buffer = 50 * 1024 * 1024
-    if free_space >= (required_space + buffer):
+    total_space = disk_usage.total
+    five_percent_total = total_space * 0.05
+
+    if free_space >= required_space and free_space >= five_percent_total:
         return True
+
     return False
 
 
