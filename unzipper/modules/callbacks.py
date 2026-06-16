@@ -1,4 +1,3 @@
-
 # Copyright (c) 2022 - 2024 EDM115
 import asyncio
 import concurrent.futures
@@ -37,7 +36,6 @@ from unzipper import LOGGER, unzipperbot
 from unzipper.helpers.database import (
     add_cancel_task,
     add_ongoing_task,
-    clear_queue,
     count_ongoing_tasks,
     del_cancel_task,
     del_merge_task,
@@ -113,143 +111,6 @@ def get_zip_http(url):
     rzf = unzip_http.RemoteZipFile(url)
     paths = rzf.namelist()
     return rzf, paths
-
-
-async def process_queue(client, message, queue, password=None):
-    uid = message.from_user.id
-    total_files = len(queue)
-    processed_count = 0
-    total_size = 0
-    q_start_time = time()
-
-    # Initial log for the whole queue
-    await client.send_message(
-        chat_id=Config.LOGS_CHANNEL,
-        text=f"**#QUEUE_START**\n**User:** `{uid}`\n**Total files:** `{total_files}`",
-    )
-
-    status_msg = await message.reply_text(
-        Messages.PROCESSING_QUEUE.format(processed_count, total_files, "Starting...")
-    )
-
-    # Sort the queue by msg_id to ensure sequential processing
-    queue.sort()
-
-    for msg_id in queue:
-        # Check for cancellation before processing each file
-        if await get_cancel_task(uid):
-            await status_msg.edit_text("❌ **Queue processing stopped by user!**")
-            await del_cancel_task(uid)
-            await clear_queue(uid)
-            return
-
-        processed_count += 1
-        try:
-            # Get the message object for the file
-            msg = await client.get_messages(chat_id=uid, message_ids=msg_id)
-            if not msg or not msg.document:
-                continue
-
-            fname = msg.document.file_name
-            fsize = msg.document.file_size
-            total_size += fsize
-            
-            await status_msg.edit_text(
-                Messages.PROCESSING_QUEUE.format(
-                    processed_count, total_files, fname
-                )
-            )
-
-            # Log this specific file to the logs channel
-            log_msg = await msg.forward(chat_id=Config.LOGS_CHANNEL)
-            await log_msg.reply(
-                f"**#QUEUE_FILE**\n**User:** `{uid}`\n**File:** `{fname}`\n**Size:** `{humanbytes(fsize)}`",
-                quote=True
-            )
-
-            # Download
-            download_path = f"{Config.DOWNLOAD_LOCATION}/{uid}/queue_{msg_id}"
-            os.makedirs(download_path, exist_ok=True)
-            s_time = time()
-            location = f"{download_path}/{fname}"
-            
-            archive = await msg.download(
-                file_name=location,
-                progress=progress_for_pyrogram,
-                progress_args=(
-                    Messages.TRY_DL,
-                    status_msg,
-                    s_time,
-                    client,
-                ),
-            )
-
-            # Extract
-            ext_files_dir = f"{download_path}/extracted"
-            os.makedirs(ext_files_dir, exist_ok=True)
-            
-            # Using password if provided in /done
-            extractor = await extr_files(
-                path=ext_files_dir,
-                archive_path=archive,
-                password=password,
-            )
-
-            # Check for errors
-            if any(err in extractor for err in ERROR_MSGS):
-                await client.send_message(
-                    chat_id=uid,
-                    text=f"❌ Failed to extract: `{fname}`\nError: `{extractor}`"
-                )
-            else:
-                # Upload all files
-                paths = await get_files(path=ext_files_dir)
-                for file in paths:
-                    # Check for cancellation during uploads too
-                    if await get_cancel_task(uid):
-                        await status_msg.edit_text("❌ **Queue processing stopped!**")
-                        await del_cancel_task(uid)
-                        await clear_queue(uid)
-                        shutil.rmtree(download_path)
-                        return
-
-                    await send_file(
-                        unzip_bot=client,
-                        c_id=uid,
-                        doc_f=file,
-                        query=None, # Pseudo query
-                        full_path=ext_files_dir,
-                        log_msg=log_msg,
-                        split=False,
-                    )
-            
-            # Cleanup current task folder to save space
-            try:
-                shutil.rmtree(download_path)
-            except:
-                pass
-
-        except Exception as e:
-            LOGGER.error(f"Error in queue processing: {e}")
-            await client.send_message(chat_id=uid, text=f"⚠️ Error processing file: `{e}`")
-
-    # Final Stats
-    q_end_time = time()
-    total_time = q_end_time - q_start_time
-    avg_speed = total_size / total_time if total_time > 0 else 0
-    
-    final_text = f"""
-✅ **Queue Processing Completed!**
-
-📂 **Total Files:** `{total_files}`
-📦 **Total Size:** `{humanbytes(total_size)}`
-⏱️ **Total Time:** `{timeformat_sec(total_time)}`
-🚀 **Average Speed:** `{humanbytes(avg_speed)}/s`
-
-All files have been extracted and sent!
-    """
-    await status_msg.edit_text(final_text)
-    await clear_queue(uid)
 
 
 async def async_generator(iterable):
